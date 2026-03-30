@@ -32,7 +32,7 @@ const activityCtrl = {
           SELECT
             s.id AS subscription_id,
             s.start_date,
-            s.end_date,
+            MAX(s.end_date) AS end_date,
             s.status,
             c.id AS client_id,
             c.first_name,
@@ -49,7 +49,8 @@ const activityCtrl = {
           FROM subscriptions s
           JOIN clients c ON c.id = s.client_id
           WHERE s.activity_id = ?
-          ORDER BY datetime(s.end_date) DESC
+          GROUP BY c.id
+          ORDER BY datetime(end_date) DESC
         `,
         )
         .all(id);

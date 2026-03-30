@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 
-const db = new Database("nuurgym.db", { verbose: console.log });
+const db = new Database("nuurgym.db");
 db.pragma("journal_mode = WAL");
 
 export const initDb = () => {

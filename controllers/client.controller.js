@@ -24,11 +24,30 @@ const clientCtrl = {
       const clients = db
         .prepare(
           `
-                SELECT c.*, s.status as subscription_status, a.name as activity_name 
-                FROM clients c
-                LEFT JOIN subscriptions s ON c.id = s.client_id AND s.status = 'ACTIVE'
-                LEFT JOIN activities a ON s.activity_id = a.id
-            `,
+          SELECT 
+            c.*, 
+            sub.activity_name,
+            sub.activity_ids,
+            sub.subscription_end_date,
+            CASE 
+                WHEN sub.active_count > 0 THEN 'ACTIVE' 
+                ELSE 'EXPIRED' 
+            END AS subscription_status
+          FROM clients c
+          LEFT JOIN (
+            SELECT 
+              s.client_id,
+              GROUP_CONCAT(a.name, ', ') AS activity_name,
+              GROUP_CONCAT(a.id) AS activity_ids,
+              MAX(s.end_date) AS subscription_end_date,
+              COUNT(s.id) AS active_count
+            FROM subscriptions s
+            JOIN activities a ON s.activity_id = a.id
+            WHERE s.status = 'ACTIVE'
+            GROUP BY s.client_id
+          ) sub ON c.id = sub.client_id
+          ORDER BY c.created_at DESC
+          `,
         )
         .all();
       return res.status(200).json({ data: clients });
@@ -125,7 +144,17 @@ const clientCtrl = {
 
   update: (req, res) => {
     const { id } = req.params;
-    const { first_name, last_name, email, phone, address } = req.body;
+    const {
+      first_name,
+      last_name,
+      email,
+      phone,
+      address,
+      activity_id,
+      amount_paid,
+      payment_method,
+      subscription_type,
+    } = req.body;
 
     if (!first_name || !last_name) {
       return res
@@ -138,21 +167,61 @@ const clientCtrl = {
       if (!client)
         return res.status(404).json({ message: "Client introuvable." });
 
-      db.prepare(
-        `
-                UPDATE clients 
-                SET first_name = ?, last_name = ?, email = ?, phone = ?, address = ?
-                WHERE id = ?
-            `,
-      ).run(
-        first_name,
-        last_name,
-        email || null,
-        phone || null,
-        address || null,
-        id,
-      );
+      const updateTx = db.transaction(() => {
+        // 1. Update basic info
+        db.prepare(
+          `
+          UPDATE clients 
+          SET first_name = ?, last_name = ?, email = ?, phone = ?, address = ?
+          WHERE id = ?
+          `,
+        ).run(
+          first_name,
+          last_name,
+          email || null,
+          phone || null,
+          address || null,
+          id,
+        );
 
+        // 2. Update subscription if activity_id is provided
+        if (activity_id) {
+          const durationDays = getSubscriptionDurationDays(subscription_type);
+          const startDate = new Date().toISOString();
+          const endDate = new Date(
+            Date.now() + durationDays * 24 * 60 * 60 * 1000,
+          ).toISOString();
+
+          // Mark previous active subscriptions as EXPIRED
+          db.prepare(
+            `UPDATE subscriptions SET status = 'EXPIRED' WHERE client_id = ? AND status = 'ACTIVE'`,
+          ).run(id);
+
+          // Insert new subscription
+          db.prepare(
+            `
+            INSERT INTO subscriptions (client_id, activity_id, start_date, end_date, status)
+            VALUES (?, ?, ?, ?, 'ACTIVE')
+            `,
+          ).run(id, activity_id, startDate, endDate);
+
+          // 3. Register transaction if amount > 0
+          if (amount_paid > 0) {
+            db.prepare(
+              `
+              INSERT INTO transactions (amount, type, description, payment_method)
+              VALUES (?, 'INCOME', ?, ?)
+              `,
+            ).run(
+              amount_paid,
+              `MàJ Abonnement ${first_name} ${last_name}`,
+              payment_method || "CASH",
+            );
+          }
+        }
+      });
+
+      updateTx();
       return res.status(200).json({ message: "Client mis à jour avec succès" });
     } catch (error) {
       return res.status(500).json({ error: error.message });
@@ -223,6 +292,26 @@ const clientCtrl = {
       return res
         .status(200)
         .json({ message: "Abonnement renouvelé avec succès" });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  },
+  
+  history: (req, res) => {
+    const { id } = req.params;
+    try {
+      const history = db
+        .prepare(
+          `
+          SELECT s.*, a.name as activity_name 
+          FROM subscriptions s
+          JOIN activities a ON s.activity_id = a.id
+          WHERE s.client_id = ?
+          ORDER BY datetime(s.end_date) DESC
+        `,
+        )
+        .all(id);
+      return res.status(200).json({ data: history });
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }

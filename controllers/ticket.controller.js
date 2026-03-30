@@ -95,6 +95,7 @@ const ticketCtrl = {
           const qr_code = crypto.randomUUID();
           insertTicket.run(activity_id, price, qr_code, valid_until);
           ticketsToInsert.push({
+            activity_id,
             qr_code,
             price,
             valid_until,
@@ -214,7 +215,7 @@ const ticketCtrl = {
           });
       }
 
-      // 3. QR Code Inconnu totalement
+      // 3. QR Code Inconnu 
       db.prepare(
         `INSERT INTO access_logs (qr_code_scanned, is_valid, details) VALUES (?, ?, ?)`,
       ).run(qr_code, 0, "QR Code Inconnu");
@@ -223,6 +224,34 @@ const ticketCtrl = {
         .json({
           message: "QR Code Invalide ou Inconnu dans la base Nuur GYM.",
         });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  },
+
+  getLogs: (req, res) => {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 20;
+      const filter = req.query.filter || 'all';
+      const offset = (page - 1) * limit;
+
+      let where = '';
+      if (filter === 'valid') where = 'WHERE is_valid = 1';
+      else if (filter === 'refused') where = 'WHERE is_valid = 0';
+
+      const total = db
+        .prepare(`SELECT COUNT(*) as count FROM access_logs ${where}`)
+        .get().count;
+
+      const logs = db
+        .prepare(`SELECT * FROM access_logs ${where} ORDER BY scanned_at DESC LIMIT ? OFFSET ?`)
+        .all(limit, offset);
+
+      return res.status(200).json({
+        data: logs,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      });
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }

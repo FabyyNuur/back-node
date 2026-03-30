@@ -9,5 +9,6 @@ routes.get("/", requireAuth, clientCtrl.list);
 routes.post("/", requireAuth, clientCtrl.add);
 routes.put("/:id", requireAuth, clientCtrl.update);
 routes.post("/:id/subscribe", requireAuth, clientCtrl.subscribe);
+routes.get("/:id/history", requireAuth, clientCtrl.history);
 
 export default routes;
