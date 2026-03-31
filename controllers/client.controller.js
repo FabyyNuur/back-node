@@ -98,20 +98,25 @@ const clientCtrl = {
         );
       const clientId = clientResult.lastInsertRowid;
 
-      // 2. Créer l'abonnement si une activité est sélectionnée
+      // 2. Créer l'abonnement si une ou plusieurs activités sont sélectionnées
       if (activity_id) {
+        const activityIds = Array.isArray(activity_id) ? activity_id : [activity_id];
         const durationDays = getSubscriptionDurationDays(subscription_type);
         const startDate = new Date().toISOString();
         const endDate = new Date(
           Date.now() + durationDays * 24 * 60 * 60 * 1000,
         ).toISOString();
 
-        db.prepare(
+        const insertSub = db.prepare(
           `
                     INSERT INTO subscriptions (client_id, activity_id, start_date, end_date, status)
                     VALUES (?, ?, ?, ?, 'ACTIVE')
                 `,
-        ).run(clientId, activity_id, startDate, endDate);
+        );
+
+        activityIds.forEach(actId => {
+          insertSub.run(clientId, actId, startDate, endDate);
+        });
       }
 
       // 3. Enregistrer le paiement en caisse si le montant > 0
@@ -168,7 +173,6 @@ const clientCtrl = {
         return res.status(404).json({ message: "Client introuvable." });
 
       const updateTx = db.transaction(() => {
-        // 1. Update basic info
         db.prepare(
           `
           UPDATE clients 
@@ -184,28 +188,29 @@ const clientCtrl = {
           id,
         );
 
-        // 2. Update subscription if activity_id is provided
         if (activity_id) {
+          const activityIds = Array.isArray(activity_id) ? activity_id : [activity_id];
           const durationDays = getSubscriptionDurationDays(subscription_type);
           const startDate = new Date().toISOString();
           const endDate = new Date(
             Date.now() + durationDays * 24 * 60 * 60 * 1000,
           ).toISOString();
 
-          // Mark previous active subscriptions as EXPIRED
           db.prepare(
             `UPDATE subscriptions SET status = 'EXPIRED' WHERE client_id = ? AND status = 'ACTIVE'`,
           ).run(id);
 
-          // Insert new subscription
-          db.prepare(
+          const insertSub = db.prepare(
             `
             INSERT INTO subscriptions (client_id, activity_id, start_date, end_date, status)
             VALUES (?, ?, ?, ?, 'ACTIVE')
             `,
-          ).run(id, activity_id, startDate, endDate);
+          );
+          
+          activityIds.forEach(actId => {
+            insertSub.run(id, actId, startDate, endDate);
+          });
 
-          // 3. Register transaction if amount > 0
           if (amount_paid > 0) {
             db.prepare(
               `
