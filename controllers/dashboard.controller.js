@@ -108,8 +108,8 @@ const dashboardCtrl = {
 
       // 8. Historique Scanner QR d'Accès récents
       const recentLogs = db
-        .prepare(`SELECT * FROM access_logs ORDER BY scanned_at DESC LIMIT 5`)
-        .all();
+        .prepare(`SELECT * FROM access_logs WHERE scanned_at BETWEEN ? AND ? ORDER BY scanned_at DESC LIMIT 5`)
+        .all(startOfPeriod, endOfPeriod);
 
       // 9. Monthly Trends (Glissement des 6 derniers mois)
       const months = [
