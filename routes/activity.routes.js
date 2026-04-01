@@ -7,6 +7,12 @@ const routes = Router();
 // Tout le monde (authentifié, Gérant ou Contrôleur) peut voir les activités
 routes.get("/", requireAuth, activityCtrl.list);
 routes.get("/:id/details", requireAuth, activityCtrl.details);
+routes.get(
+  "/:id/deactivate-impact",
+  requireAuth,
+  requireAdmin,
+  activityCtrl.deactivateImpact,
+);
 
 // Seul l'admin (Gérant) peut gérer le catalogue d'activités
 routes.post("/", requireAuth, requireAdmin, activityCtrl.add);

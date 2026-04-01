@@ -17,15 +17,27 @@ const getSubscriptionDurationDays = (subscriptionType) => {
   }
 };
 
+const normalizeActivityIds = (activity_id) =>
+  Array.isArray(activity_id) ? activity_id : [activity_id];
+
+const getInactiveOrMissingActivity = (activityIds = []) => {
+  const findActivityStmt = db.prepare(
+    `SELECT id, name, is_active FROM activities WHERE id = ?`,
+  );
+  return activityIds
+    .map((actId) => findActivityStmt.get(actId))
+    .find((activity) => !activity || Number(activity.is_active) !== 1);
+};
+
 const clientCtrl = {
   list: (req, res) => {
     try {
-      // Jointure pour récupérer les infos du client et son abonnement actif s'il y en a un
       const clients = db
         .prepare(
           `
           SELECT 
             c.*, 
+            sub.activity_details,
             sub.activity_name,
             sub.activity_ids,
             sub.subscription_end_date,
@@ -37,6 +49,7 @@ const clientCtrl = {
           LEFT JOIN (
             SELECT 
               s.client_id,
+              GROUP_CONCAT(a.name || '|' || s.end_date, '; ') AS activity_details,
               GROUP_CONCAT(a.name, ', ') AS activity_name,
               GROUP_CONCAT(a.id) AS activity_ids,
               MAX(s.end_date) AS subscription_end_date,
@@ -100,7 +113,11 @@ const clientCtrl = {
 
       // 2. Créer l'abonnement si une ou plusieurs activités sont sélectionnées
       if (activity_id) {
-        const activityIds = Array.isArray(activity_id) ? activity_id : [activity_id];
+        const activityIds = normalizeActivityIds(activity_id);
+        const invalidActivity = getInactiveOrMissingActivity(activityIds);
+        if (invalidActivity) {
+          throw new Error("Une ou plusieurs activités sont introuvables ou désactivées.");
+        }
         const durationDays = getSubscriptionDurationDays(subscription_type);
         const startDate = new Date().toISOString();
         const endDate = new Date(
@@ -109,13 +126,14 @@ const clientCtrl = {
 
         const insertSub = db.prepare(
           `
-                    INSERT INTO subscriptions (client_id, activity_id, start_date, end_date, status)
-                    VALUES (?, ?, ?, ?, 'ACTIVE')
+                    INSERT INTO subscriptions (client_id, activity_id, start_date, end_date, status, amount_paid, payment_method)
+                    VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?)
                 `,
         );
 
-        activityIds.forEach(actId => {
-          insertSub.run(clientId, actId, startDate, endDate);
+        activityIds.forEach((actId, index) => {
+          const proportionalAmount = index === 0 ? amount_paid : 0; 
+          insertSub.run(clientId, actId, startDate, endDate, proportionalAmount, payment_method || "CASH");
         });
       }
 
@@ -126,10 +144,10 @@ const clientCtrl = {
 
         db.prepare(
           `
-                    INSERT INTO transactions (amount, type, description, payment_method)
-                    VALUES (?, 'INCOME', ?, ?)
+                    INSERT INTO transactions (amount, type, description, payment_method, client_id)
+                    VALUES (?, 'INCOME', ?, ?, ?)
                 `,
-        ).run(amount_paid, description, payment_method || "CASH");
+        ).run(amount_paid, description, payment_method || "CASH", clientId);
       }
 
       return clientId;
@@ -143,6 +161,9 @@ const clientCtrl = {
         qr_code: qr_code,
       });
     } catch (error) {
+      if (error.message.includes("désactivées")) {
+        return res.status(403).json({ message: error.message });
+      }
       return res.status(500).json({ error: error.message });
     }
   },
@@ -189,7 +210,11 @@ const clientCtrl = {
         );
 
         if (activity_id) {
-          const activityIds = Array.isArray(activity_id) ? activity_id : [activity_id];
+          const activityIds = normalizeActivityIds(activity_id);
+          const invalidActivity = getInactiveOrMissingActivity(activityIds);
+          if (invalidActivity) {
+            throw new Error("Une ou plusieurs activités sont introuvables ou désactivées.");
+          }
           const durationDays = getSubscriptionDurationDays(subscription_type);
           const startDate = new Date().toISOString();
           const endDate = new Date(
@@ -202,25 +227,27 @@ const clientCtrl = {
 
           const insertSub = db.prepare(
             `
-            INSERT INTO subscriptions (client_id, activity_id, start_date, end_date, status)
-            VALUES (?, ?, ?, ?, 'ACTIVE')
+            INSERT INTO subscriptions (client_id, activity_id, start_date, end_date, status, amount_paid, payment_method)
+            VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?)
             `,
           );
           
-          activityIds.forEach(actId => {
-            insertSub.run(id, actId, startDate, endDate);
+          activityIds.forEach((actId, index) => {
+            const proportionalAmount = index === 0 ? amount_paid : 0;
+            insertSub.run(id, actId, startDate, endDate, proportionalAmount, payment_method || "CASH");
           });
 
           if (amount_paid > 0) {
             db.prepare(
               `
-              INSERT INTO transactions (amount, type, description, payment_method)
-              VALUES (?, 'INCOME', ?, ?)
+              INSERT INTO transactions (amount, type, description, payment_method, client_id)
+              VALUES (?, 'INCOME', ?, ?, ?)
               `,
             ).run(
               amount_paid,
               `MàJ Abonnement ${first_name} ${last_name}`,
               payment_method || "CASH",
+              id,
             );
           }
         }
@@ -229,6 +256,9 @@ const clientCtrl = {
       updateTx();
       return res.status(200).json({ message: "Client mis à jour avec succès" });
     } catch (error) {
+      if (error.message.includes("désactivées")) {
+        return res.status(403).json({ message: error.message });
+      }
       return res.status(500).json({ error: error.message });
     }
   },
@@ -254,6 +284,9 @@ const clientCtrl = {
         .get(activity_id);
       if (!activity)
         return res.status(404).json({ message: "Activité introuvable." });
+      if (Number(activity.is_active) !== 1) {
+        return res.status(403).json({ message: "Cette activité est désactivée." });
+      }
 
       const renewTx = db.transaction(() => {
         const durationDays = getSubscriptionDurationDays(subscription_type);
@@ -270,25 +303,26 @@ const clientCtrl = {
                 `,
         ).run(id);
 
-        // Nouvel abonnement de 30 jours
+        // Nouvel abonnement
         db.prepare(
           `
-                    INSERT INTO subscriptions (client_id, activity_id, start_date, end_date, status)
-                    VALUES (?, ?, ?, ?, 'ACTIVE')
+                    INSERT INTO subscriptions (client_id, activity_id, start_date, end_date, status, amount_paid, payment_method)
+                    VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?)
                 `,
-        ).run(id, activity_id, startDate, endDate);
+        ).run(id, activity_id, startDate, endDate, amount_paid, payment_method || "CASH");
 
         // Enregistrer l'encaissement
         if (amount_paid > 0) {
           db.prepare(
             `
-                        INSERT INTO transactions (amount, type, description, payment_method)
-                        VALUES (?, 'INCOME', ?, ?)
+                        INSERT INTO transactions (amount, type, description, payment_method, client_id)
+                        VALUES (?, 'INCOME', ?, ?, ?)
                     `,
           ).run(
             amount_paid,
             `Renouvellement abonnement ${client.first_name} ${client.last_name} (${activity.name})`,
             payment_method || "CASH",
+            id,
           );
         }
       });

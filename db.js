@@ -10,7 +10,8 @@ export const initDb = () => {
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             name TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'CONTROLEUR' -- 'ADMIN' ou 'CONTROLEUR'
+            role TEXT NOT NULL DEFAULT 'CONTROLEUR', -- 'ADMIN' ou 'CONTROLEUR'
+            is_active INTEGER NOT NULL DEFAULT 1
         );
     `);
 
@@ -26,7 +27,8 @@ export const initDb = () => {
             semester_price REAL,
             yearly_price REAL,
             subscription_only BOOLEAN DEFAULT 0,
-            color TEXT DEFAULT '#F36F6F'
+            color TEXT DEFAULT '#F36F6F',
+            is_active INTEGER NOT NULL DEFAULT 1
         );
     `);
 
@@ -94,15 +96,52 @@ export const initDb = () => {
   const hasColorColumn = activityColumns.some(
     (column) => column.name === "color",
   );
+  const hasActivityIsActiveColumn = activityColumns.some(
+    (column) => column.name === "is_active",
+  );
   if (!hasColorColumn) {
     db.prepare(
       `ALTER TABLE activities ADD COLUMN color TEXT DEFAULT '#F36F6F'`,
+    ).run();
+  }
+  if (!hasActivityIsActiveColumn) {
+    db.prepare(
+      `ALTER TABLE activities ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1`,
     ).run();
   }
 
   db.prepare(
     `UPDATE activities SET color = '#F36F6F' WHERE color IS NULL OR TRIM(color) = ''`,
   ).run();
+  db.prepare(
+    `UPDATE activities SET is_active = 1 WHERE is_active IS NULL`,
+  ).run();
+
+  const userColumns = db.prepare(`PRAGMA table_info(users)`).all();
+  const hasUserIsActiveColumn = userColumns.some(
+    (column) => column.name === "is_active",
+  );
+  if (!hasUserIsActiveColumn) {
+    db.prepare(
+      `ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1`,
+    ).run();
+  }
+  db.prepare(`UPDATE users SET is_active = 1 WHERE is_active IS NULL`).run();
+
+  const subscriptionColumns = db
+    .prepare(`PRAGMA table_info(subscriptions)`)
+    .all();
+  const subColNames = subscriptionColumns.map((c) => c.name);
+  if (!subColNames.includes("amount_paid")) {
+    db.prepare(
+      `ALTER TABLE subscriptions ADD COLUMN amount_paid REAL DEFAULT 0`,
+    ).run();
+  }
+  if (!subColNames.includes("payment_method")) {
+    db.prepare(
+      `ALTER TABLE subscriptions ADD COLUMN payment_method TEXT DEFAULT 'CASH'`,
+    ).run();
+  }
 
   const adminExists = db
     .prepare(`SELECT count(*) as count FROM users WHERE role = 'ADMIN'`)

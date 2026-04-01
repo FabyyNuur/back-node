@@ -64,6 +64,10 @@ const ticketCtrl = {
         .get(activity_id);
       if (!activity)
         return res.status(404).json({ message: "Activité introuvable." });
+      if (Number(activity.is_active) !== 1)
+        return res
+          .status(403)
+          .json({ message: "Cette activité est désactivée." });
       if (activity.subscription_only === 1)
         return res
           .status(403)
@@ -114,7 +118,7 @@ const ticketCtrl = {
         ).run(
           totalAmount,
           `Achat de ${quantity} ticket(s) ${activity.name} - validité ${validity_option}`,
-          payment_method || "CASH",
+          (payment_method || "CASH").toUpperCase(),
         );
       })();
 
@@ -142,6 +146,17 @@ const ticketCtrl = {
         .prepare(`SELECT * FROM tickets WHERE qr_code = ?`)
         .get(qr_code);
       if (ticket) {
+        const ticketActivity = db
+          .prepare(`SELECT id, name, is_active FROM activities WHERE id = ?`)
+          .get(ticket.activity_id);
+        if (!ticketActivity || Number(ticketActivity.is_active) !== 1) {
+          db.prepare(
+            `INSERT INTO access_logs (qr_code_scanned, is_valid, details) VALUES (?, ?, ?)`,
+          ).run(qr_code, 0, "Ticket refusé: activité désactivée");
+          return res
+            .status(403)
+            .json({ message: "Ticket refusé : activité désactivée." });
+        }
         if (ticket.status === "USED") {
           db.prepare(
             `INSERT INTO access_logs (qr_code_scanned, is_valid, details) VALUES (?, ?, ?)`,
@@ -183,7 +198,13 @@ const ticketCtrl = {
       if (client) {
         const sub = db
           .prepare(
-            `SELECT * FROM subscriptions WHERE client_id = ? AND status = 'ACTIVE' AND end_date > ?`,
+            `SELECT s.*, a.name AS activity_name
+             FROM subscriptions s
+             JOIN activities a ON a.id = s.activity_id
+             WHERE s.client_id = ?
+               AND s.status = 'ACTIVE'
+               AND s.end_date > ?
+               AND a.is_active = 1`,
           )
           .get(client.id, new Date().toISOString());
         if (!sub) {
