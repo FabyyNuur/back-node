@@ -240,14 +240,13 @@ const clientCtrl = {
           if (amount_paid > 0) {
             db.prepare(
               `
-              INSERT INTO transactions (amount, type, description, payment_method, client_id)
-              VALUES (?, 'INCOME', ?, ?, ?)
+              INSERT INTO transactions (amount, type, description, payment_method)
+              VALUES (?, 'INCOME', ?, ?)
               `,
             ).run(
               amount_paid,
               `MàJ Abonnement ${first_name} ${last_name}`,
               payment_method || "CASH",
-              id,
             );
           }
         }
