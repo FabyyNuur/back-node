@@ -14,10 +14,18 @@ export function createApp(){
     initDb();
 
     const app = express();
-    
+    // Évite 304 + reprise d'un vieux JSON sans les champs récents (ex. is_active)
+    app.set("etag", false);
+
     // Middlewares globaux
     app.use(cors()); // Autorise les connexions depuis les fronts (React, Vue)
     app.use(express.json()); // Permet de lire le body des requêtes en JSON
+
+    app.use(config.apiPrefix, (req, res, next) => {
+      res.setHeader("Cache-Control", "no-store, private");
+      res.setHeader("Pragma", "no-cache");
+      next();
+    });
 
     // Route racine (Home)
     app.get('/',(req, res)=>{
