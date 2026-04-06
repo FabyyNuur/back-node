@@ -314,14 +314,13 @@ const clientCtrl = {
         if (amount_paid > 0) {
           db.prepare(
             `
-                        INSERT INTO transactions (amount, type, description, payment_method, client_id)
-                        VALUES (?, 'INCOME', ?, ?, ?)
+                        INSERT INTO transactions (amount, type, description, payment_method)
+                        VALUES (?, 'INCOME', ?, ?)
                     `,
           ).run(
             amount_paid,
             `Renouvellement abonnement ${client.first_name} ${client.last_name} (${activity.name})`,
             payment_method || "CASH",
-            id,
           );
         }
       });
