@@ -89,8 +89,8 @@ export const initDb = () => {
             description TEXT,
             payment_method TEXT DEFAULT 'CASH', -- 'CASH', 'CARD', 'MOBILE_MONEY'
             client_id INTEGER,
-            FOREIGN KEY (client_id) REFERENCES clients(id),
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients(id)
         );
     `);
 
