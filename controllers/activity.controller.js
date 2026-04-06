@@ -23,7 +23,8 @@ function estimateRefundProrata(startDateStr, endDateStr, amountPaid) {
 const activityCtrl = {
   list: (req, res) => {
     try {
-      const isAdmin = req.user?.role === "ADMIN";
+      const normalizedRole = req.user?.role ? String(req.user.role).toUpperCase() : null;
+      const isAdmin = normalizedRole === "ADMIN";
       const activities = isAdmin
         ? db.prepare(`SELECT * FROM activities`).all()
         : db.prepare(`SELECT * FROM activities WHERE is_active = 1`).all();
