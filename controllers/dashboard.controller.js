@@ -155,9 +155,9 @@ const dashboardCtrl = {
       // 5. Total Membres Actifs (Globalement)
       const activeMembersRow = db
         .prepare(
-          `SELECT COUNT(DISTINCT client_id) as count FROM subscriptions WHERE status = 'ACTIVE' AND end_date >= ?`,
+          `SELECT COUNT(DISTINCT client_id) as count FROM subscriptions WHERE status = 'ACTIVE' AND datetime(end_date) >= datetime('now')`,
         )
-        .get(toSqlFormat(new Date()));
+        .get();
       const activeMembers = activeMembersRow?.count || 0;
 
       // 6. Solde Caisse Global (Calculé sur TOUTES les transactions)
@@ -271,7 +271,9 @@ const dashboardCtrl = {
                 now.getUTCFullYear(),
                 now.getUTCMonth(),
                 Math.min(d + 4, daysInMonth),
-                23, 59, 59,
+                23,
+                59,
+                59,
               ),
             );
 
@@ -294,14 +296,28 @@ const dashboardCtrl = {
         case "year":
           // Les 12 mois de l'année en cours
           const monthsNames = [
-            "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
-            "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc",
+            "Jan",
+            "Fév",
+            "Mar",
+            "Avr",
+            "Mai",
+            "Juin",
+            "Juil",
+            "Aoû",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Déc",
           ];
           for (let m = 0; m < 12; m++) {
             chartLabels.push(monthsNames[m]);
 
-            const dStartY = new Date(Date.UTC(now.getUTCFullYear(), m, 1, 0, 0, 0));
-            const dEndY = new Date(Date.UTC(now.getUTCFullYear(), m + 1, 0, 23, 59, 59));
+            const dStartY = new Date(
+              Date.UTC(now.getUTCFullYear(), m, 1, 0, 0, 0),
+            );
+            const dEndY = new Date(
+              Date.UTC(now.getUTCFullYear(), m + 1, 0, 23, 59, 59),
+            );
 
             const incomeRow = db
               .prepare(

@@ -88,6 +88,8 @@ export const initDb = () => {
             type TEXT NOT NULL, -- 'INCOME', 'EXPENSE'
             description TEXT,
             payment_method TEXT DEFAULT 'CASH', -- 'CASH', 'CARD', 'MOBILE_MONEY'
+            client_id INTEGER,
+            FOREIGN KEY (client_id) REFERENCES clients(id),
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
     `);
@@ -142,6 +144,19 @@ export const initDb = () => {
       `ALTER TABLE subscriptions ADD COLUMN payment_method TEXT DEFAULT 'CASH'`,
     ).run();
   }
+
+  const transactionColumns = db
+    .prepare(`PRAGMA table_info(transactions)`)
+    .all();
+  const hasTransactionClientIdColumn = transactionColumns.some(
+    (column) => column.name === "client_id",
+  );
+  if (!hasTransactionClientIdColumn) {
+    db.prepare(`ALTER TABLE transactions ADD COLUMN client_id INTEGER`).run();
+  }
+  db.prepare(
+    `CREATE INDEX IF NOT EXISTS idx_transactions_client_id ON transactions (client_id)`,
+  ).run();
 
   const adminExists = db
     .prepare(`SELECT count(*) as count FROM users WHERE role = 'ADMIN'`)
