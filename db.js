@@ -10,7 +10,7 @@ export const initDb = () => {
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             name TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'CONTROLEUR', -- 'ADMIN' ou 'CONTROLEUR'
+            role TEXT NOT NULL DEFAULT 'CONTROLEUR', -- 'ADMIN', 'CONTROLEUR' ou 'CAISSIER'
             is_active INTEGER NOT NULL DEFAULT 1
         );
     `);
