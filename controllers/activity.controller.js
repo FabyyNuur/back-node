@@ -23,12 +23,35 @@ function estimateRefundProrata(startDateStr, endDateStr, amountPaid) {
 const activityCtrl = {
   list: (req, res) => {
     try {
-      const normalizedRole = req.user?.role ? String(req.user.role).toUpperCase() : null;
+      const normalizedRole = req.user?.role
+        ? String(req.user.role).toUpperCase()
+        : null;
       const isAdmin = normalizedRole === "ADMIN";
       const activities = isAdmin
         ? db.prepare(`SELECT * FROM activities`).all()
         : db.prepare(`SELECT * FROM activities WHERE is_active = 1`).all();
       return res.status(200).json({ data: activities });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  },
+
+  getById: (req, res) => {
+    const { id } = req.params;
+
+    try {
+      const activity = db
+        .prepare(`SELECT * FROM activities WHERE id = ?`)
+        .get(id);
+      if (!activity) {
+        return res.status(404).json({ message: "Activité non trouvée" });
+      }
+
+      if (Number(activity.is_active) !== 1 && req.user?.role !== "ADMIN") {
+        return res.status(404).json({ message: "Activité non trouvée" });
+      }
+
+      return res.status(200).json({ data: activity });
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }

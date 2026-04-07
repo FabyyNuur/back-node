@@ -210,9 +210,28 @@ const swaggerDefinition = {
       },
     },
     "/users/{id}": {
+      get: {
+        tags: ["Users"],
+        summary: "Recuperer un utilisateur par id (admin)",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "integer" },
+          },
+        ],
+        responses: {
+          200: { description: "Utilisateur trouve" },
+          404: { description: "Utilisateur introuvable" },
+        },
+      },
       put: {
         tags: ["Users"],
         summary: "Modifier un utilisateur (admin)",
+        description:
+          "L'identifiant utilise pour la mise a jour est celui du champ de chemin `id`. Si un `id` different est envoye dans le body, il est ignore.",
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -276,9 +295,28 @@ const swaggerDefinition = {
       },
     },
     "/activities/{id}": {
+      get: {
+        tags: ["Activities"],
+        summary: "Recuperer une activite par id",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "integer" },
+          },
+        ],
+        responses: {
+          200: { description: "Activite trouvee" },
+          404: { description: "Activite introuvable" },
+        },
+      },
       put: {
         tags: ["Activities"],
         summary: "Modifier une activite (admin)",
+        description:
+          "L'identifiant utilise pour la mise a jour est celui du champ de chemin `id`. Si un `id` different est envoye dans le body, il est ignore.",
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -368,9 +406,28 @@ const swaggerDefinition = {
       },
     },
     "/clients/{id}": {
+      get: {
+        tags: ["Clients"],
+        summary: "Recuperer un client par id",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "integer" },
+          },
+        ],
+        responses: {
+          200: { description: "Client trouve" },
+          404: { description: "Client introuvable" },
+        },
+      },
       put: {
         tags: ["Clients"],
         summary: "Modifier un client",
+        description:
+          "L'identifiant utilise pour la mise a jour est celui du champ de chemin `id`. Si un `id` different est envoye dans le body, il est ignore.",
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,

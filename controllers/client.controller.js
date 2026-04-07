@@ -69,6 +69,34 @@ const clientCtrl = {
     }
   },
 
+  getById: (req, res) => {
+    const { id } = req.params;
+    try {
+      const client = db.prepare(`SELECT * FROM clients WHERE id = ?`).get(id);
+      if (!client) {
+        return res.status(404).json({ message: "Client introuvable." });
+      }
+
+      const activeSubscriptions = db
+        .prepare(
+          `
+          SELECT s.*, a.name AS activity_name
+          FROM subscriptions s
+          JOIN activities a ON a.id = s.activity_id
+          WHERE s.client_id = ?
+          ORDER BY datetime(s.end_date) DESC
+        `,
+        )
+        .all(id);
+
+      return res
+        .status(200)
+        .json({ data: { ...client, subscriptions: activeSubscriptions } });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  },
+
   add: (req, res) => {
     const {
       first_name,
@@ -116,7 +144,9 @@ const clientCtrl = {
         const activityIds = normalizeActivityIds(activity_id);
         const invalidActivity = getInactiveOrMissingActivity(activityIds);
         if (invalidActivity) {
-          throw new Error("Une ou plusieurs activités sont introuvables ou désactivées.");
+          throw new Error(
+            "Une ou plusieurs activités sont introuvables ou désactivées.",
+          );
         }
         const durationDays = getSubscriptionDurationDays(subscription_type);
         const startDate = new Date().toISOString();
@@ -132,8 +162,15 @@ const clientCtrl = {
         );
 
         activityIds.forEach((actId, index) => {
-          const proportionalAmount = index === 0 ? amount_paid : 0; 
-          insertSub.run(clientId, actId, startDate, endDate, proportionalAmount, payment_method || "CASH");
+          const proportionalAmount = index === 0 ? amount_paid : 0;
+          insertSub.run(
+            clientId,
+            actId,
+            startDate,
+            endDate,
+            proportionalAmount,
+            payment_method || "CASH",
+          );
         });
       }
 
@@ -213,7 +250,9 @@ const clientCtrl = {
           const activityIds = normalizeActivityIds(activity_id);
           const invalidActivity = getInactiveOrMissingActivity(activityIds);
           if (invalidActivity) {
-            throw new Error("Une ou plusieurs activités sont introuvables ou désactivées.");
+            throw new Error(
+              "Une ou plusieurs activités sont introuvables ou désactivées.",
+            );
           }
           const durationDays = getSubscriptionDurationDays(subscription_type);
           const startDate = new Date().toISOString();
@@ -231,10 +270,17 @@ const clientCtrl = {
             VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?)
             `,
           );
-          
+
           activityIds.forEach((actId, index) => {
             const proportionalAmount = index === 0 ? amount_paid : 0;
-            insertSub.run(id, actId, startDate, endDate, proportionalAmount, payment_method || "CASH");
+            insertSub.run(
+              id,
+              actId,
+              startDate,
+              endDate,
+              proportionalAmount,
+              payment_method || "CASH",
+            );
           });
 
           if (amount_paid > 0) {
@@ -284,7 +330,9 @@ const clientCtrl = {
       if (!activity)
         return res.status(404).json({ message: "Activité introuvable." });
       if (Number(activity.is_active) !== 1) {
-        return res.status(403).json({ message: "Cette activité est désactivée." });
+        return res
+          .status(403)
+          .json({ message: "Cette activité est désactivée." });
       }
 
       const renewTx = db.transaction(() => {
@@ -308,7 +356,14 @@ const clientCtrl = {
                     INSERT INTO subscriptions (client_id, activity_id, start_date, end_date, status, amount_paid, payment_method)
                     VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?)
                 `,
-        ).run(id, activity_id, startDate, endDate, amount_paid, payment_method || "CASH");
+        ).run(
+          id,
+          activity_id,
+          startDate,
+          endDate,
+          amount_paid,
+          payment_method || "CASH",
+        );
 
         // Enregistrer l'encaissement
         if (amount_paid > 0) {
@@ -333,7 +388,7 @@ const clientCtrl = {
       return res.status(500).json({ error: error.message });
     }
   },
-  
+
   history: (req, res) => {
     const { id } = req.params;
     try {

@@ -40,6 +40,22 @@ const userCtrl = {
       return res.status(500).json({ error: error.message });
     }
   },
+  getById: (req, res) => {
+    const { id } = req.params;
+    try {
+      const user = db
+        .prepare(
+          `SELECT id, email, name, role, is_active FROM users WHERE id = ?`,
+        )
+        .get(id);
+      if (!user) {
+        return res.status(404).json({ message: "Utilisateur introuvable." });
+      }
+      return res.status(200).json({ data: user });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  },
   add: (req, res) => {
     const { email, password, name, role, is_active } = req.body;
     if (!email || !password || !name) {
@@ -98,11 +114,9 @@ const userCtrl = {
         Number(req.user.id) === Number(id) &&
         nextIsActive === 0
       ) {
-        return res
-          .status(400)
-          .json({
-            message: "Vous ne pouvez pas désactiver votre propre compte.",
-          });
+        return res.status(400).json({
+          message: "Vous ne pouvez pas désactiver votre propre compte.",
+        });
       }
 
       const nextEmail = Object.prototype.hasOwnProperty.call(req.body, "email")

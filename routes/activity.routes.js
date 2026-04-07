@@ -6,6 +6,7 @@ const routes = Router();
 
 // Tout le monde (authentifié, Gérant ou Contrôleur) peut voir les activités
 routes.get("/", requireAuth, activityCtrl.list);
+routes.get("/:id", requireAuth, activityCtrl.getById);
 routes.get("/:id/details", requireAuth, activityCtrl.details);
 routes.get(
   "/:id/deactivate-impact",

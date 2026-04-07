@@ -6,10 +6,10 @@ const routes = Router();
 
 // Routes pour gérer les utilisateurs Nuur GYM
 routes.get("/", requireAuth, requireAdmin, userCtrl.list);
+routes.get("/:id", requireAuth, requireAdmin, userCtrl.getById);
 routes.post("/", requireAuth, requireAdmin, userCtrl.add);
 routes.put("/:id", requireAuth, requireAdmin, userCtrl.update);
 routes.delete("/:id", requireAuth, requireAdmin, userCtrl.delete);
 routes.post("/login", userCtrl.login);
-
 
 export default routes;
